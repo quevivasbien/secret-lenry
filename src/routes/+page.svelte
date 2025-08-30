@@ -1,40 +1,38 @@
-<script lang="ts">
-    import Button from "$lib/components/Button.svelte";
-    import Deck from "$lib/components/Deck.svelte";
-    import type { CardInfo } from "$lib/interfaces";
+<script>
+    import lenry0 from "$lib/assets/secretLenry_pixelated.png";
+    import lenry1 from "$lib/assets/secretLenry_pixelated1.png";
+    import lenry2 from "$lib/assets/secretLenry_pixelated2.png";
 
-    let cardsBack: CardInfo[] = $state([
-        { front: "a-front", back: "a-back" },
-        { front: "b-front", back: "b-back" },
-        { front: "c-front", back: "c-back" },
-    ]);
-    let cardsFront: CardInfo[] = $state([]);
+    const images = [lenry0, lenry1, lenry2];
 
-    function drawCard() {
-        const card = cardsBack.pop();
-        if (card) {
-            cardsFront.push(card);
+    const im1prob = 0.11; // probability of changing to E
+    const im2prob = 0.05; // probability of changing to CRET
+    const flickerInterval = 152; // milliseconds
+
+    let currentImage = images[0];
+
+    setInterval(() => {
+        if (Math.random() < im1prob){
+            currentImage = images[1];
+        } else if (Math.random() < im2prob){
+            currentImage = images[2];
+        } else {
+            currentImage = images[0];
         }
-    }
-
-    function shuffleArray<T>(array: T[]): T[] {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-        return array;
-    }
-
-    function resetCards() {
-        cardsBack = shuffleArray([...cardsBack, ...cardsFront]);
-        cardsFront = [];
-    }
+    }, flickerInterval);
 </script>
 
-<div class="flex flex-row justify-center content-center gap-4">
-    <Deck cards={cardsBack} side="back" />
-    <Deck cards={cardsFront} side="front" />
+<div class = "centered">
+    <a href="/game">
+        <img src={currentImage} alt='secret lenry'/>
+    </a>
 </div>
 
-<Button onclick={drawCard}>Draw Card</Button>
-<Button onclick={resetCards}>Reset</Button>
+<style>
+    .centered {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+</style>
