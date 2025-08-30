@@ -22,16 +22,17 @@
     }, flickerInterval);
 </script>
 
-<style>
-    .centered {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-</style>
-
 <div class = "centered">
     <a href="/game">
         <img src={currentImage} alt='secret lenry'/>
     </a>
 </div>
+
+<style>
+    .centered {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+</style>
