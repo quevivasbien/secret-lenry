@@ -1,38 +1,12 @@
-# sv
+# Secret Lenry!!!
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+## How to set up dev environment
 
-## Creating a project
+You should just need a recent version of NodeJS with NPM (or an equivalent):
 
-If you're seeing this, you've probably already done this step. Congrats!
+* On MacOS, with homebrew, `brew install node@22`
+* On Debian/Ubuntu, with apt, `curl -sL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs`
 
-```sh
-# create a new project in the current directory
-npx sv create
+Then just run `npm install` to install dependencies and `npm run dev` to start a dev server.
 
-# create a new project in my-app
-npx sv create my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+This project is built with SvelteKit with Svelte 5. [See documentation here](https://svelte.dev/docs). We use [tailwindcss](https://tailwindcss.com/).
