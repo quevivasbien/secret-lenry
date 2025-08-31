@@ -4,11 +4,9 @@
     import lenry2 from "$lib/assets/SecretLenry_pixelated2.png";
     import Button from "$lib/components/Button.svelte";
     import TextInput from "$lib/components/Input.svelte";
-    import { supabase } from "$lib/supabase";
     import type { PageProps } from "./$types";
 
-    let { data, form }: PageProps = $props();
-    console.log("data:", data);
+    let { form }: PageProps = $props();
 
     const images = [lenry0, lenry1, lenry2];
 

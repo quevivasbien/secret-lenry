@@ -1,13 +1,9 @@
-import { getUser, supabase } from "$lib/supabase";
 import { redirect, type Actions, type RequestEvent } from "@sveltejs/kit";
-import type { PageServerLoad } from "./$types";
 
 interface FormResponse {
     success: boolean;
     error?: string;
 }
-
-export const load: PageServerLoad = getUser;
 
 function processValidateLobbyName(lobbyName: FormDataEntryValue | null): { lobbyName: string, error: null } | { lobbyName: null, error: string } {
     if (!lobbyName) {
@@ -39,9 +35,9 @@ export const actions = {
 
         redirect(303, `/lobby/${encodeURIComponent(lobbyName as string)}`);
     },
-    createRoom: async (event: RequestEvent): Promise<FormResponse> => {
+    createRoom: async ({ request, locals: { supabase } }): Promise<FormResponse> => {
         console.log("createRoom");
-        const formData = await event.request.formData();
+        const formData = await request.formData();
         const { lobbyName, error } = processValidateLobbyName(formData.get("roomName"));
 
         if (error) {
