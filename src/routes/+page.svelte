@@ -1,13 +1,14 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
     import lenry0 from "$lib/assets/SecretLenry_pixelated.png";
     import lenry1 from "$lib/assets/SecretLenry_pixelated1.png";
     import lenry2 from "$lib/assets/SecretLenry_pixelated2.png";
     import Button from "$lib/components/Button.svelte";
     import TextInput from "$lib/components/Input.svelte";
+    import { supabase } from "$lib/supabase";
     import type { PageProps } from "./$types";
 
-    let { form }: PageProps = $props();
+    let { data, form }: PageProps = $props();
+    console.log("data:", data);
 
     const images = [lenry0, lenry1, lenry2];
 
@@ -37,8 +38,7 @@
         method="POST"
         action="?/joinRoom"
     >
-        <TextInput placeholder="Player Name" name="playerName" required />
-        <TextInput placeholder="Room ID" name="roomId" required />
+        <TextInput placeholder="Room Name" name="roomName" required />
         <Button type="submit">Join Existing Room</Button>
     </form>
     <form
@@ -46,6 +46,7 @@
         method="POST"
         action="?/createRoom"
     >
+        <TextInput placeholder="Room Name" name="roomName" required />
         <Button type="submit">Create New Room</Button>
     </form>
 

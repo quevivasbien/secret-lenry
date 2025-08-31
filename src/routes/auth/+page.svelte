@@ -2,7 +2,6 @@
     import { Turnstile } from "svelte-turnstile";
     import { PUBLIC_TURNSTILE_SITE_KEY } from "$env/static/public";
     import type { PageProps } from "./$types";
-    import { goto } from "$app/navigation";
 
     let turnstileForm: HTMLFormElement | null = $state(null);
     function oncallback(
