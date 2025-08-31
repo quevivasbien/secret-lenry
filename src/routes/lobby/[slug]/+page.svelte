@@ -1,62 +1,130 @@
 <script lang="ts">
-    import type { SupabaseClient } from "@supabase/supabase-js";
-    import { onMount } from "svelte";
+    import { goto } from "$app/navigation";
+    import Button from "$lib/components/Button.svelte";
+    import { extractValuesFromPresenceState } from "$lib/supabase.js";
+    import { onDestroy, onMount } from "svelte";
 
     const { data } = $props();
-    const { lobbyName, host_id, supabase } = $derived(data);
+    const { lobbyName, host_id, supabase, user } = $derived(data);
 
-    function subscribe(supabase: SupabaseClient) {
-        supabase
-            .channel("public:lobby_members")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "lobby_members",
-                    // filter: `host_id=eq.${host_id}`,
-                },
-                (payload: any) => {
-                    console.log("Change received!", payload);
-                },
-            )
-            .subscribe((status) => {
-                if (status === "SUBSCRIBED") {
-                    console.log(
-                        "Subscribed to lobby_members changes, where host_id =",
-                        host_id,
-                    );
-                } else {
-                    console.log("Subscription status:", status);
-                }
-            });
+    type memberList = Array<{ uuid: string }>;
+    let lobbyMembers: memberList = $state([]);
+
+    // If host leaves, lobby is closed
+    let hostPresent = $state(true);
+    function hostExitedLobby() {
+        hostPresent = false;
+        // Redirect to home page after short delay
+        setTimeout(() => {
+            goto("/");
+        }, 2000);
     }
 
+    // Callback executed to disconnect from lobby channel when leaving page
+    let disconnect = () => {};
+
     onMount(() => {
-        subscribe(supabase);
-        supabase
-            .from("lobby_members")
-            .select("*")
-            .filter("host_id", "eq", host_id)
-            .then(({ data, error }) => {
-                if (error) {
-                    console.error("Error fetching lobby members:", error);
-                } else {
-                    console.log("Current lobby members:", data);
+        if (!user) {
+            throw new Error("User not authenticated");
+        }
+
+        // Subscribe to channel lobby
+        const channel = supabase.channel(`lobby:${host_id}`);
+        channel
+            .on("presence", { event: "sync" }, () => {
+                const newState = channel.presenceState();
+                lobbyMembers = extractValuesFromPresenceState(newState, [
+                    "uuid",
+                ]) as memberList;
+                if (
+                    host_id !== user.id &&
+                    !lobbyMembers.find((member) => member.uuid === host_id)
+                ) {
+                    // Host is not in the lobby!
+                    hostExitedLobby();
                 }
+            })
+            .subscribe(async (status) => {
+                await channel.track({
+                    uuid: user.id,
+                });
             });
+        disconnect = () => {
+            channel.untrack();
+            supabase.removeChannel(channel);
+            // If you are the host, delete the lobby
+            if (host_id === user?.id) {
+                console.log("Host is leaving, deleting lobby");
+                supabase.from("lobbies").delete().eq("host_id", host_id);
+            }
+        };
     });
+
+    onDestroy(() => {
+        disconnect();
+    });
+
+    const minimumPlayers = 5;
+    let canStartGame = $derived(lobbyMembers.length >= minimumPlayers);
+
+    function startGame() {
+        if (!canStartGame) {
+            console.error(
+                `Cannot start game, need at least ${minimumPlayers} players`,
+            );
+            return;
+        }
+        // TODO
+    }
 </script>
 
 <div
     class="p-4 sm:p-8 md:p-12 w-full sm:w-3/4 md:w-1/2 lg:w-1/3 m-auto flex flex-col justify-center items-center gap-4 sm:gap-8 bg-white"
 >
-    <h1 class="text-3xl font-bold mb-4">Lobby: {lobbyName}</h1>
-    {#if host_id}
-        <p>Host ID: {host_id}</p>
-        <a href="/" class="text-blue-500 underline mt-4">Exit lobby</a>
+    <h1 class="text-3xl mb-4">
+        Lobby: <span class="font-bold">{lobbyName}</span>
+    </h1>
+    {#if hostPresent}
+        <h2 class="text-2xl mb-2">Currently present:</h2>
+        <ol class="w-full border border-gray-300 rounded-md overflow-hidden">
+            {#each lobbyMembers as member}
+                <li class="border-b border-gray-300 py-2 w-full text-center">
+                    {member.uuid}
+                </li>
+            {/each}
+        </ol>
+
+        {#if host_id === user?.id}
+            <p class="mt-4 text-green-600 font-bold text-center">
+                You are the host.
+            </p>
+            <p class="text-sm text-gray-600 text-center">
+                Share the lobby name <span class="font-bold">{lobbyName}</span> with others so they can join!
+            </p>
+            <Button
+                disabled={!canStartGame}
+                title={canStartGame
+                    ? "Start the game"
+                    : `Need at least ${minimumPlayers} players`}
+                onclick={startGame}
+            >
+                Start Game
+            </Button>
+        {:else}
+            <p class="mt-4 text-blue-600 font-bold">
+                Waiting for the host to start the game...
+            </p>
+        {/if}
     {:else}
-        <p>Lobby not found.</p>
-        <a href="/" class="text-blue-500 underline mt-4">Go back to home</a>
+        <div class="text-red-500 text-center">
+            <p class="text-xl font-bold">Host has left the lobby.</p>
+            <p>You will be redirected to the home page shortly.</p>
+        </div>
     {/if}
+
+    <a
+        href="/"
+        class="mt-4 text-gray-600 underline hover:text-gray-800"
+        >Leave Lobby</a
+    >
 </div>
