@@ -1,7 +1,7 @@
 import type { Actions, RequestEvent } from "@sveltejs/kit";
 
 interface FormResponse {
-    success?: boolean;
+    success: boolean;
     error?: string;
 }
 
