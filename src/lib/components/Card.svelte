@@ -1,13 +1,21 @@
 <script lang="ts">
+    import henryCard from "$lib/assets/Henwy_card.png";
+    import tentaclesCard from "$lib/assets/Tentacles_card.png";
+
     let {
         front,
-        back,
+        team = "tentacles",
         side = "back",
     }: {
         front: string;
-        back: string;
+        team: string;
         side: "front" | "back";
     } = $props();
+
+    let img = tentaclesCard;
+    if (team === "henry") {
+        img = henryCard;
+    }
 
     const MAX_ROTATION_DEG = 3;
     const rotation = -MAX_ROTATION_DEG + 2 * Math.random() * MAX_ROTATION_DEG;
@@ -23,7 +31,9 @@
         <div
             class="p-1 h-full w-full border border-gray-400 bg-gray-300 rounded flex flex-col justify-center content-center"
         >
-            <div class="justify-center text-center">{back}</div>
+            <div class="justify-center text-center">
+                <img src={img} alt="{team} card" class="max-h-full max-w-full" />
+            </div>
         </div>
     {/if}
 </div>

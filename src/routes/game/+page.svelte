@@ -3,11 +3,14 @@
     import Deck from "$lib/components/Deck.svelte";
     import type { CardInfo } from "$lib/interfaces";
 
+    const henryodds = 0.3; // probability of drawing a henry card
+
     let cardsBack: CardInfo[] = $state([
-        { front: "a-front", back: "a-back" },
-        { front: "b-front", back: "b-back" },
-        { front: "c-front", back: "c-back" },
+        { front: "a-front", team: (Math.random() < henryodds)? "henry" : "tentacles" },
+        { front: "b-front", team: (Math.random() < henryodds)? "henry" : "tentacles" },
+        { front: "c-front", team: (Math.random() < henryodds)? "henry" : "tentacles" },
     ]);
+
     let cardsFront: CardInfo[] = $state([]);
 
     function drawCard() {

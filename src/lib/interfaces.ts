@@ -1,4 +1,4 @@
 export interface CardInfo {
     front: string;
-    back: string;
+    team: "henry" | "tentacles";
 }

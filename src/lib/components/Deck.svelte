@@ -12,9 +12,9 @@
 </script>
 
 <div class="relative w-[90px] h-[120px] sm:w-[135px] sm:h-[180px]">
-    {#each cards as card (card.front + card.back)}
+    {#each cards as card (card.front + card.team)}
         <div class="absolute top-0 right-0">
-            <Card {side} front={card.front} back={card.back} />
+            <Card {side} front={card.front} team={card.team} />
         </div>
     {/each}
 </div>
