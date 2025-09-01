@@ -2,6 +2,7 @@
     import Button from "$lib/components/Button.svelte";
     import Deck from "$lib/components/Deck.svelte";
     import type { CardInfo } from "$lib/interfaces";
+    import { shuffleArray } from "$lib/utils";
 
     const henryodds = 0.3; // probability of drawing a henry card
 
@@ -18,14 +19,6 @@
         if (card) {
             cardsFront.push(card);
         }
-    }
-
-    function shuffleArray<T>(array: T[]): T[] {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-        return array;
     }
 
     function resetCards() {
