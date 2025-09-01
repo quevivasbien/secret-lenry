@@ -9,14 +9,6 @@ interface FormResponse {
     error?: string,
 }
 
-// export const load: PageServerLoad = async ({ locals: { supabase } }) => {
-//     const { data: { user } } = await supabase.auth.getUser();
-//     if (user) {
-//         // User is authenticated, no need to re-authenticate, redirect to main page
-//         redirect(303, '/');
-//     }
-// };
-
 async function validateToken(supabase: SupabaseClient, token: FormDataEntryValue, secret: string): Promise<FormResponse> {
     // Auth anonymously with supabase
     const { error } = await supabase.auth.signInAnonymously({ options: { captchaToken: token.toString() } });
@@ -28,17 +20,18 @@ async function validateToken(supabase: SupabaseClient, token: FormDataEntryValue
 
 export const actions = {
     default: async ({ request, locals: { supabase } }): Promise<FormResponse> => {
-        console.log('Request received for Turnstile validation');
         const formData = await request.formData();
-        console.log('Form Data:', formData);
         const token = formData.get('cf-turnstile-response');
         if (token === null) {
             return { success: false, error: 'No Turnstile token provided' };
         }
 
-        console.log('Turnstile token:', token);
-
         const supabaseResponse = await validateToken(supabase, token, TURNSTILE_SECRET_KEY);
+
+        // Redirect to main page on success
+        if (supabaseResponse.success) {
+            redirect(303, '/');
+        }
 
         return supabaseResponse;
     }

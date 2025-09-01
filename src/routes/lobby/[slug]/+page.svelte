@@ -2,6 +2,7 @@
     import { goto } from "$app/navigation";
     import Button from "$lib/components/Button.svelte";
     import { extractValuesFromPresenceState } from "$lib/supabase.js";
+    import type { RealtimeChannel } from "@supabase/supabase-js";
     import { onDestroy, onMount } from "svelte";
 
     const { data } = $props();
@@ -9,6 +10,8 @@
 
     type memberList = Array<{ uuid: string }>;
     let lobbyMembers: memberList = $state([]);
+
+    let channel: RealtimeChannel | null = $state(null);
 
     // If host leaves, lobby is closed
     let hostPresent = $state(true);
@@ -20,8 +23,18 @@
         }, 2000);
     }
 
-    // Callback executed to disconnect from lobby channel when leaving page
-    let disconnect = () => {};
+    let gameStarted = $state(false);
+    function receivedGameStartSignal() {
+        if (gameStarted) {
+            // Don't execute multiple times
+            return;
+        }
+        gameStarted = true;
+        // Redirect to game page after short delay
+        setTimeout(() => {
+            goto(`/game/${lobbyName}`);
+        }, 2000);
+    }
 
     onMount(() => {
         if (!user) {
@@ -29,9 +42,12 @@
         }
 
         // Subscribe to channel lobby
-        const channel = supabase.channel(`lobby:${host_id}`);
+        channel = supabase.channel(`lobby:${host_id}`);
         channel
             .on("presence", { event: "sync" }, () => {
+                if (!channel) {
+                    throw new Error("Channel not initialized when receiving presence sync");
+                }
                 const newState = channel.presenceState();
                 lobbyMembers = extractValuesFromPresenceState(newState, [
                     "uuid",
@@ -44,47 +60,87 @@
                     hostExitedLobby();
                 }
             })
-            .subscribe(async (status) => {
+            .on("broadcast", { event: "game_started" }, receivedGameStartSignal)
+            .subscribe(async (_status) => { 
+                if (!channel) {
+                    throw new Error("Channel not initialized when subscribing");
+                }
+                // Share own user ID after connecting
                 await channel.track({
                     uuid: user.id,
                 });
             });
-        disconnect = () => {
-            channel.untrack();
-            supabase.removeChannel(channel);
-            // If you are the host, delete the lobby
-            if (host_id === user?.id) {
-                console.log("Host is leaving, deleting lobby");
-                supabase.from("lobbies").delete().eq("host_id", host_id);
-            }
-        };
+    });
+
+    // Callback executed to disconnect from lobby channel when leaving page
+    let disconnect = $derived(() => {
+        if (!channel) {
+            return;
+        }
+        channel.untrack();
+        supabase.removeChannel(channel);
+        // If you are the host, delete the lobby
+        if (host_id === user?.id) {
+            console.log("Host is leaving, deleting lobby");
+            supabase.from("lobbies").delete().eq("host_id", host_id);
+        }
     });
 
     onDestroy(() => {
         disconnect();
     });
 
-    const minimumPlayers = 5;
+    const minimumPlayers = 1;
     let canStartGame = $derived(lobbyMembers.length >= minimumPlayers);
 
-    function startGame() {
+    let startGame = $derived(() => {
         if (!canStartGame) {
-            console.error(
+            throw new Error(
                 `Cannot start game, need at least ${minimumPlayers} players`,
             );
             return;
         }
-        // TODO
-    }
+
+        // If host, start new game
+        if (host_id !== user?.id) {
+            throw new Error("Only the host can start the game");
+        }
+
+        // Insert new game into database
+        supabase
+            .from("games")
+            .upsert(
+                { host_id: host_id, player_ids: lobbyMembers.map((m) => m.uuid) },
+                { ignoreDuplicates: false, onConflict: "host_id",}
+            )
+            .then((response) => {
+                console.log("Game started response:", response);
+                if (response.error) {
+                    throw new Error("Error starting game:", response.error);
+                }
+                // Notify all players in lobby that game has started
+                if (!channel) {
+                    throw new Error("Channel not initialized when starting game");
+                }
+                channel.send({
+                    type: "broadcast",
+                    event: "game_started",
+                    payload: {},
+                });
+                receivedGameStartSignal();
+            });
+    });
 </script>
 
 <div
     class="p-4 sm:p-8 md:p-12 w-full sm:w-3/4 md:w-1/2 lg:w-1/3 m-auto flex flex-col justify-center items-center gap-4 sm:gap-8 bg-white"
 >
     <h1 class="text-3xl mb-4">
-        Lobby: <span class="font-bold">{lobbyName}</span>
+        <span title="It's called a lobby because it's where lobsters hang out."
+            >Lobby</span
+        >: <span class="font-bold">{lobbyName}</span>
     </h1>
-    {#if hostPresent}
+    {#if hostPresent && !gameStarted}
         <h2 class="text-2xl mb-2">Currently present:</h2>
         <ol class="w-full border border-gray-300 rounded-md overflow-hidden">
             {#each lobbyMembers as member}
@@ -99,7 +155,8 @@
                 You are the host.
             </p>
             <p class="text-sm text-gray-600 text-center">
-                Share the lobby name <span class="font-bold">{lobbyName}</span> with others so they can join!
+                Share the lobby name <span class="font-bold">{lobbyName}</span> with
+                others so they can join!
             </p>
             <Button
                 disabled={!canStartGame}
@@ -115,6 +172,11 @@
                 Waiting for the host to start the game...
             </p>
         {/if}
+    {:else if gameStarted}
+        <div class="text-green-500 text-center">
+            <p class="text-xl font-bold">Game is starting!</p>
+            <p>You will be redirected to the game page shortly.</p>
+        </div>
     {:else}
         <div class="text-red-500 text-center">
             <p class="text-xl font-bold">Host has left the lobby.</p>
@@ -122,9 +184,7 @@
         </div>
     {/if}
 
-    <a
-        href="/"
-        class="mt-4 text-gray-600 underline hover:text-gray-800"
+    <a href="/" class="mt-4 text-gray-600 underline hover:text-gray-800"
         >Leave Lobby</a
     >
 </div>
