@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import Button from "$lib/components/Button.svelte";
+    import { Game } from "$lib/game.js";
     import { extractValuesFromPresenceState } from "$lib/supabase.js";
     import type { RealtimeChannel } from "@supabase/supabase-js";
     import { onDestroy, onMount } from "svelte";
@@ -32,7 +33,7 @@
         gameStarted = true;
         // Redirect to game page after short delay
         setTimeout(() => {
-            goto(`/game/${lobbyName}`);
+            goto(`/game/${host_id}`);
         }, 2000);
     }
 
@@ -46,7 +47,9 @@
         channel
             .on("presence", { event: "sync" }, () => {
                 if (!channel) {
-                    throw new Error("Channel not initialized when receiving presence sync");
+                    throw new Error(
+                        "Channel not initialized when receiving presence sync",
+                    );
                 }
                 const newState = channel.presenceState();
                 lobbyMembers = extractValuesFromPresenceState(newState, [
@@ -61,7 +64,7 @@
                 }
             })
             .on("broadcast", { event: "game_started" }, receivedGameStartSignal)
-            .subscribe(async (_status) => { 
+            .subscribe(async (_status) => {
                 if (!channel) {
                     throw new Error("Channel not initialized when subscribing");
                 }
@@ -90,15 +93,16 @@
         disconnect();
     });
 
-    const minimumPlayers = 1;
-    let canStartGame = $derived(lobbyMembers.length >= minimumPlayers);
+    const minimumPlayers = 5;
+    const maxPlayers = 10;
 
     let startGame = $derived(() => {
-        if (!canStartGame) {
+        if (lobbyMembers.length < minimumPlayers) {
             throw new Error(
                 `Cannot start game, need at least ${minimumPlayers} players`,
             );
-            return;
+        } else if (lobbyMembers.length > maxPlayers) {
+            throw new Error(`Cannot start game, max players is ${maxPlayers}`);
         }
 
         // If host, start new game
@@ -106,30 +110,31 @@
             throw new Error("Only the host can start the game");
         }
 
-        // Insert new game into database
-        supabase
-            .from("games")
-            .upsert(
-                { host_id: host_id, player_ids: lobbyMembers.map((m) => m.uuid) },
-                { ignoreDuplicates: false, onConflict: "host_id",}
-            )
-            .then((response) => {
-                console.log("Game started response:", response);
-                if (response.error) {
-                    throw new Error("Error starting game:", response.error);
-                }
-                // Notify all players in lobby that game has started
-                if (!channel) {
-                    throw new Error("Channel not initialized when starting game");
-                }
-                channel.send({
-                    type: "broadcast",
-                    event: "game_started",
-                    payload: {},
-                });
-                receivedGameStartSignal();
+        // Create new game and upload to DB
+        const game = Game.new(
+            host_id,
+            lobbyMembers.map((m) => m.uuid),
+        );
+        game.toDB(supabase).then(() => {
+            // Notify all players in lobby that game has started
+            if (!channel) {
+                throw new Error("Channel not initialized when starting game");
+            }
+            channel.send({
+                type: "broadcast",
+                event: "game_started",
+                payload: {},
             });
+            receivedGameStartSignal();
+        });
     });
+
+    function createDummyLobbyMembers() {
+        const dummyUIDs = Array.from({ length: 5 }, () =>
+            crypto.randomUUID(),
+        );
+        lobbyMembers = [...lobbyMembers, ...dummyUIDs.map((uuid) => ({ uuid }))];
+    }
 </script>
 
 <div
@@ -159,10 +164,13 @@
                 others so they can join!
             </p>
             <Button
-                disabled={!canStartGame}
-                title={canStartGame
-                    ? "Start the game"
-                    : `Need at least ${minimumPlayers} players`}
+                disabled={lobbyMembers.length < minimumPlayers ||
+                    lobbyMembers.length > maxPlayers}
+                title={lobbyMembers.length < minimumPlayers
+                    ? `Need at least ${minimumPlayers} players to start`
+                    : lobbyMembers.length > maxPlayers
+                      ? `Maximum players is ${maxPlayers}`
+                      : "Start the game"}
                 onclick={startGame}
             >
                 Start Game
@@ -188,3 +196,7 @@
         >Leave Lobby</a
     >
 </div>
+
+<Button onclick={createDummyLobbyMembers}>
+    Add Dummy Lobby Members (for testing)
+</Button>
