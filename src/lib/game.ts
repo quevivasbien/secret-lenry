@@ -50,23 +50,7 @@ export class Game {
         );
     }
 
-    static async fromDB(supabase: SupabaseClient, host_id: string): Promise<Game | null> {
-        const { data, error } = await supabase
-            .from("games")
-            .select("player_ids, state")
-            .eq("host_id", host_id)
-            .maybeSingle();
-
-        if (error) {
-            throw new Error(`Failed to fetch game from DB: ${error.message}`);
-        }
-
-        if (!data) {
-            return null;
-        }
-
-        const { player_ids, state }: { player_ids: string[]; state: DBGameState } = data;
-
+    static fromDBState(host_id: string, player_ids: string[], state: DBGameState): Game {
         const playerRoles: Record<string, Role> = {};
         state.roles.forEach((role: Role, i: number) => {
             playerRoles[player_ids[i]] = role;
@@ -93,7 +77,27 @@ export class Game {
         );
     }
 
-    async toDB(supabase: SupabaseClient): Promise<void> {
+    static async fromDB(supabase: SupabaseClient, host_id: string): Promise<Game | null> {
+        const { data, error } = await supabase
+            .from("games")
+            .select("player_ids, state")
+            .eq("host_id", host_id)
+            .maybeSingle();
+
+        if (error) {
+            throw new Error(`Failed to fetch game from DB: ${error.message}`);
+        }
+
+        if (!data) {
+            return null;
+        }
+
+        const { player_ids, state }: { player_ids: string[]; state: DBGameState } = data;
+
+        return Game.fromDBState(host_id, player_ids, state);
+    }
+
+    toDBGameState(): DBGameState {
         const gameData: DBGameState = {
             deck: this.policy_deck,
             discard: this.discarded_policies,
@@ -107,6 +111,11 @@ export class Game {
             gameData.candidate = this.main_squeeze_candidate;
             gameData.votes = this.candidate_votes;
         }
+        return gameData;
+    }
+
+    async toDB(supabase: SupabaseClient): Promise<void> {
+        const gameData = this.toDBGameState();   
 
         const { error } = await supabase
             .from("games")
@@ -126,6 +135,11 @@ export class Game {
             front: policy === "h" ? "henry policy" : "lenry policy",
             back: "policy card",
         }));
+    }
+
+    readyForMainSqueezeNomination(): boolean {
+        // Need to current main squeeze and no current candidate
+        return this.main_squeeze === -1 && this.main_squeeze_candidate === -1;
     }
 
     getEligibleMainSqueezePlayers(): number[] {
