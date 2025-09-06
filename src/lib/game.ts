@@ -2,18 +2,33 @@
 
 import { randInt, shuffleArray } from "$lib/utils";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CardInfo } from "./interfaces";
+
+type DBGameState = {
+    deck: Policy[];
+    discard: Policy[];
+    hen_pol: number;
+    len_pol: number;
+    roles: Role[];
+    governor: number;
+    main_sq: number;
+    candidate?: number;
+    votes?: boolean[];
+};
 
 export class Game {
     constructor(
-        private host_id: string,
-        private players: string[],
-        private policy_deck: Policy[],
-        private discarded_policies: Policy[],
-        private enacted_hen_policies: number,
-        private enacted_len_policies: number,
-        private roles: Record<string, Role>,
-        private governor: number,  // Nominates main squeeze, draws and proposes policies
-        private main_squeeze: number,  // Enacts policies, win condition if lenry becomes main squeeze
+        public host_id: string,
+        public players: string[],
+        public policy_deck: Policy[],
+        public discarded_policies: Policy[],
+        public enacted_hen_policies: number,
+        public enacted_len_policies: number,
+        public roles: Record<string, Role>,
+        public governor: number,  // Nominates main squeeze, draws and proposes policies
+        public main_squeeze: number,  // Enacts policies, win condition if lenry becomes main squeeze
+        public main_squeeze_candidate: number = -1,
+        public candidate_votes: boolean[] = [],
     ) {}
 
     static new(host_id: string, players: string[]): Game {
@@ -30,7 +45,7 @@ export class Game {
             0,
             0,
             assign_roles(players),
-            randInt(0, players.length - 1),
+            0, // randInt(0, players.length - 1), // TODO: In prod, this should be random
             -1,
         );
     }
@@ -50,12 +65,18 @@ export class Game {
             return null;
         }
 
-        const { player_ids, state } = data;
+        const { player_ids, state }: { player_ids: string[]; state: DBGameState } = data;
 
         const playerRoles: Record<string, Role> = {};
         state.roles.forEach((role: Role, i: number) => {
             playerRoles[player_ids[i]] = role;
         });
+
+        const candidate = state.candidate ?? -1;
+        const votes = state.votes ?? [];
+        if (candidate === -1 && votes.length > 0) {
+            throw new Error("Invalid game state: votes without candidate.");
+        }
 
         return new Game(
             host_id,
@@ -66,12 +87,14 @@ export class Game {
             state.len_pol,
             playerRoles,
             state.governor,
-            state.main_sq
+            state.main_sq,
+            candidate,
+            votes,
         );
     }
 
     async toDB(supabase: SupabaseClient): Promise<void> {
-        const gameData = {
+        const gameData: DBGameState = {
             deck: this.policy_deck,
             discard: this.discarded_policies,
             hen_pol: this.enacted_hen_policies,
@@ -80,6 +103,11 @@ export class Game {
             governor: this.governor,
             main_sq: this.main_squeeze,
         };
+        if (this.main_squeeze_candidate !== -1) {
+            gameData.candidate = this.main_squeeze_candidate;
+            gameData.votes = this.candidate_votes;
+        }
+
         const { error } = await supabase
             .from("games")
             .upsert(
@@ -90,6 +118,26 @@ export class Game {
         if (error) {
             throw new Error(`Failed to update game in DB: ${error.message}`);
         }
+    }
+
+    policyCardInfo(discarded: boolean = false): CardInfo[] {
+        const cards = discarded ? this.discarded_policies : this.policy_deck;
+        return cards.map((policy) => ({
+            front: policy === "h" ? "henry policy" : "lenry policy",
+            back: "policy card",
+        }));
+    }
+
+    getEligibleMainSqueezePlayers(): number[] {
+        // Main squeeze cannot also be the governor
+        // TODO: Add ability to also filter players who have recently been governor or main squeeze
+        const eligible = [];
+        for (let i = 0; i < this.players.length; i++) {
+            if (i !== this.governor) {
+                eligible.push(i);
+            }
+        }
+        return eligible;
     }
 }
 
